@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pickle
 
 class control:
-    def __init__(self, alpha=0.1, n=4, delta=0.2,data={},epsilon=0.1, q={}, pi={}):
+    def __init__(self, alpha=0.3, n=3, delta=0.3,data={},epsilon=0.1, q={}, pi={}):
         self.alpha = alpha
         self.n = n
         self.delta = delta
@@ -19,20 +20,21 @@ class control:
     def init(self):
         rng = np.random.default_rng()    
 
-        #initialize q and pi
+        #initialize q 
         for z in np.arange(0,101,1):
             temp = {}
-            for action in np.arange(-15,16,5):
-                if action + z <= 100 and action + z >= 0 and action != 0:
+            for action in [-10,-5,5,10]:
+                if action + z < 100 and action + z > 0:
                     temp[action] = rng.integers(0,15)
             self.q[(z,self.f(z))] = temp
-                
-        self.pi = {(i,self.f(i)): list(self.q[(i,self.f(i))].keys())[np.argmax(self.q[(i,self.f(i))].values())] for i in np.arange(0,101,1)}
+
+        #init pi to be greedy wrt q
+        self.pi = {(i,self.f(i)): list(self.q[(i,self.f(i))].keys())[np.argmax(list(self.q[(i,self.f(i))].values()))] for i in np.arange(0,101,1)}
         self.data = {"s":[],"a":[],"r":[-1]}
         
     def terminal_check(self,t):
         
-        slope = np.divide(np.subtract(self.data["s"][t+1][1],self.data["s"][t][1]),np.abs(np.subtract(self.data["s"][t+1][0],self.data["s"][t][0])))
+        slope = np.divide(np.subtract(self.data["s"][t+1][1],self.data["s"][t][1]),np.abs(self.data["a"][t][0]))
 
         return slope <= self.delta and slope >= 0
 
@@ -45,10 +47,32 @@ class control:
         return 0
                 
                 
-    def save(self):
-        with open("gantry_q_pi.pickle","wb") as f:
+    def save(self,version):
+        
+        with open(f"gantry_q_pi_{version}.pickle","wb") as f:
             pickle.dump((self.q,self.pi),f)
-            
+
+        #Write Value function to txt file
+        open(f"value_fn{version}.txt","w").close()
+        with open(f"value_fn{version}.txt","a") as f:
+            f.write("========================================== Q ==========================================\n\n")
+        for state, actions in self.q.items():
+            with open(f"value_fn{version}.txt","a") as f:
+                f.write(f"----------> State: {state}\n")    
+            for action, value in actions.items():
+                with open(f"value_fn{version}.txt","a") as f:
+                    f.write(f"Action|Value: {action}|{value}\n\n")
+        
+
+        #Write Pi to txt file
+        open(f"pi{version}.txt","w").close()
+        with open(f"pi{version}.txt","a") as f:
+           f.write("========================================== \u1d28 ==========================================\n\n"
+        for state, action in self.pi.items():
+           with open(f"pi{version}.txt","a") as f:
+               f.write(f"state: {state}|action: {action}\n\n")                    
+
+        print("Saved!")
         
         
     
@@ -68,6 +92,7 @@ class control:
             action = rng.choice(action_space)
 
         arr = [action,action_chance]
+        # print(f"action: {action}\n")
         self.data["a"].append(arr)
 
 
@@ -76,6 +101,7 @@ class control:
         self.data["r"].append(-1)
         z = self.data["s"][t][0]
         new_state = (z+action,self.f(z+action))
+        # print(f"state: {new_state}")        
         self.data["s"].append(new_state)
 
     def episode(self,i):
@@ -87,11 +113,9 @@ class control:
         
         initial_z = rng.integers(0,101)
         initial_state = (initial_z, self.f(initial_z))
-        # print(f"initial state: {initial_state}")
+        self.data["s"].append(initial_state)        
+        print(f"initial state: {initial_state}")
         self.bpolicy_action(initial_state)
-        self.data["s"].append(initial_state)
-        # print(f"initial action: {self.data['a'][0]}\n")
-        
 
         T = np.inf
         t = 0
@@ -101,7 +125,8 @@ class control:
             if t < T:
                 self.step(self.data["a"][t][0],t)
                 if self.terminal_check(t):
-                    self.data["r"][t+1] = self.data["s"][t][1]*0.9
+                    self.data["r"][t+1] = self.data["s"][t][1]*1.5
+                    print(f"final state: {self.data['s'][t+1]}")
                     print(f"finished episode on step: {t+1}")
                     T = t+1
                 else:
@@ -123,7 +148,7 @@ class control:
                     returns = self.data["r"][k] + 0.9 * self.leaf_node_value(k) + 0.9 * returns * self.data["a"][k][1]
 
                 self.q[self.data["s"][tau]][self.data["a"][tau][0]] += self.alpha*(returns - self.q[self.data["s"][tau]][self.data["a"][tau][0]])
-                self.pi[self.data["s"][tau]] = list(self.q[self.data["s"][tau]].keys())[np.argmax(self.q[self.data["s"][tau]].values())]
+                self.pi[self.data["s"][tau]] = list(self.q[self.data["s"][tau]].keys())[np.argmax(list(self.q[self.data["s"][tau]].values()))]
             if tau == T-1:
                 print("**************************************************\n")
             t+=1
@@ -132,10 +157,10 @@ class control:
 
 m = control()
 m.init()
-for i in range(50000):
+for i in range(100000):
     m.episode(i)
 
-m.save()
+m.save("1e5v3")
             
 
                 
