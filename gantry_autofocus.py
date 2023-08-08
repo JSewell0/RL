@@ -69,7 +69,7 @@ class control:
         #Write Pi to txt file
         open(f"pi{version}.txt","w").close()
         with open(f"pi{version}.txt","a") as f:
-           f.write("========================================== \u1d28 ==========================================\n\n"
+           f.write("========================================== \u1d28 ==========================================\n\n")
         for state, action in self.pi.items():
            with open(f"pi{version}.txt","a") as f:
                f.write(f"state: {state}|action: {action}\n\n")                    
@@ -140,7 +140,7 @@ class control:
             #tau is the time step at which the value fn is being updated
             tau = t+1-self.n
             if tau >= 0:
-                #determines the discounted update target based on if(terminal step)
+                #determines the discounted update target based on if next time step is terminal
                 if t+1 >= T:
                     returns = self.data["r"][T]
                 else:
