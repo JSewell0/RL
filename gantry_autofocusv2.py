@@ -135,17 +135,17 @@ class control:
 
         #initialize random start state & function and determine first action
         new_sigma = np.round(rng.normal(20,3),0)
-        self.mu = np.round(rng.normal(40,10),0) 
+        self.mu = np.round(rng.normal(50,12),0) 
         self.sigma = new_sigma if new_sigma != 0 else 10
         
         initial_z = rng.integers(0,101)
-        initial_slope = rng.choice(np.round(np.linspace(-60,60,12001),2))
-        initial_state = (initial_z,initial_slope)
+        # initial_slope = rng.choice(np.round(np.linspace(-60,60,12001),2))
+        initial_state = (initial_z,0.01)
         
         self.state_tracker[initial_state] += 1
         self.data["s"].append(initial_state)
 
-        print(f"initial (mu, sigma): ({self.mu}, {self.sigma})")
+        print(f"initial (mu, sigma): ({self.mu}, {self.sigma})\n")
         print(f"initial state: {initial_state}")
         self.bpolicy_action(initial_state)
 
@@ -160,11 +160,18 @@ class control:
                 self.step(t)
                 
                 if self.terminal_check(t):
-                    self.data["r"][t+1] = self.f(self.data["s"][t][0])*1.5
+                    difference = np.abs(self.data["s"][t+1][0]-self.mu)
+                    if difference > 10:
+                        self.data["r"][t+1] = -100                        
+                    elif difference != 0:
+                        self.data["r"][t+1] = (1/difference)*100
+                    else:
+                        self.data["r"][t+1] = 200
                     print(f"final state: {self.data['s'][t+1]}")
                     print(f"\nfinished episode on step: {t+1}")
                     T = t+1
                     self.reward_tracker = np.append(self.reward_tracker,sum(list(self.data["r"])))
+                    print(f"final cumulative reward: {self.reward_tracker[-1]}")
                 else:
                     self.bpolicy_action(self.data["s"][t+1])
 
@@ -204,11 +211,12 @@ def main():
 
     m.save("1e6")
 
+    
     i = 0
     avg_reward = np.array([])
     while i < numruns:
-        avg_reward = np.append(avg_reward,np.mean(m.reward_tracker[i:i+100]))
-        i += 100
+        avg_reward = np.append(avg_reward,np.mean(m.reward_tracker[i:i+1000]))
+        i += 1000
 
     print(f"final average reward: {avg_reward[-1]}")
     fig, ax = plt.subplots()
@@ -216,7 +224,7 @@ def main():
     ax.set_xlabel("episode")
     ax.set_ylabel("avg reward")
 
-    ax.plot(np.linspace(0,numruns,int(numruns/100)),avg_reward,"-",color="royalblue")
+    ax.plot(np.linspace(0,numruns,int(numruns/1000)),avg_reward,"-",color="royalblue")
     plt.savefig("reward_plot.png")
     plt.show()
     plt.close()

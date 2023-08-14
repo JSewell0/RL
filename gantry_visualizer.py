@@ -27,10 +27,6 @@ class control:
     def init(self):
         self.q = value_fn
 
-        # for key in self.q.keys():
-        #     self.pi[key] = list(self.q[key].keys())[np.argmax(list(self.q[key].values()))]        
-        
-
     def terminal_check(self,t):
         
         slope = np.divide(np.subtract(self.f(self.data["s"][t+1][0]),self.f(self.data["s"][t][0])),np.abs(self.data["a"][t]))
@@ -74,7 +70,6 @@ class control:
     def step(self,t):
 
         #input: time step | output: new state
-        self.data["r"].append(-1)
         action = self.data["a"][t]
         z = self.data["s"][t][0]
         new_state = (z+action,self.get_slope(t))
@@ -84,16 +79,16 @@ class control:
     def episode(self):
         
         print("**************************************************")
-        self.data = {"s":[],"a":[],"r":[-1]}        
+        self.data = {"s":[],"a":[]}        
         rng = np.random.default_rng()
         
         new_sigma = np.round(rng.normal(20,3),0)
-        self.mu = np.round(rng.normal(50,15),0) 
+        self.mu = np.round(rng.normal(50,12),0) 
         self.sigma = new_sigma if new_sigma != 0 else 10
         
         initial_z = rng.integers(0,101)
-        initial_slope = rng.choice(np.round(np.linspace(-60,60,12001),2))
-        initial_state = (initial_z,initial_slope)
+        # initial_slope = rng.choice(np.round(np.linspace(-60,60,12001),2))
+        initial_state = (initial_z,0.01)
         
         self.data["s"].append(initial_state)        
         print(f"initial state: {initial_state}\n")
@@ -112,8 +107,6 @@ class control:
             self.step(t)
             
             if self.terminal_check(t):
-                self.data["r"][t+1] = self.data["s"][t][1]*0.9
-                self.bpolicy_action(self.data["s"][t+1])                
                 print(f"final state: {self.data['s'][t+1]}\n")
                 print(f"finished episode on step: {t+1}")
                 print("**************************************************")
