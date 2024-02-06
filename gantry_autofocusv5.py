@@ -8,10 +8,11 @@ import time
 
 
 class TOsarsa:
-    def __init__(self,size = 32768,trace_decay=0.9,epsilon=0.4):
+    def __init__(self,size = 32768,trace_decay=0.9,epsilon=0.4,numruns=5e5):
 
         self.maxsize = size #max size of index hash table for tile coding
         self.iht = IHT(self.maxsize) #index hash table for tile coding
+        self.numruns = numruns
         
         self.alpha = 0.1 #step size parameter
         self.Lambda = trace_decay #trace decay parameter for eligibility trace
@@ -52,8 +53,6 @@ class TOsarsa:
         c = P.fit(x,self.f(x),3)
 
         curve = c.deriv(2)(x[-1])
-        # if not term_check:
-            # print(f"\ntime step: {t}\nx_arr: {x}\ncurve: {curve}")
 
         if curve >= 0 and curve <= 600:
             return curve
@@ -147,7 +146,7 @@ class TOsarsa:
             print(f"-->new z: {new_z}\n")
 
         terminated = False
-        if (abs(new_slope)<=1) and (new_curve>=300):
+        if (abs(new_slope)<=1) and (new_curve>=350):
             terminated = True
             reward = 10
 
@@ -159,9 +158,9 @@ class TOsarsa:
         print(f"***************************************************************************\n")
         print(f"Starting episode {i+1}\n")
 
-        param_step = i/5e5
+        param_step = i/self.numruns
         self.alpha = 0.1*(1-param_step)+0.01*(param_step)
-        self.epsilon = 0.4*(1-param_step)+0.1*(param_step)
+        self.epsilon = 0.2*(1-param_step)+0.05*(param_step)
         
         reward_sum = 0
         t = 0
@@ -233,18 +232,19 @@ class TOsarsa:
 def main():
     
     st = time.time()
-    m = TOsarsa()
+    
+    m = TOsarsa(numruns=2e5)
     m.debug = False
-    numruns = 5e5
-    for i in range(int(numruns)):
+    for i in range(int(m.numruns)):
         m.episode(i)
 
     et = time.time()
-    
+
+    #plots average reward
     i = 0
     avg_reward = np.array([])
-    stepnum = int(numruns/50)
-    while i < numruns:
+    stepnum = int(m.numruns/50)
+    while i < m.numruns:
         avg_reward = np.append(avg_reward,np.mean(m.reward_arr[i:i+stepnum]))
         i += stepnum
     
@@ -254,10 +254,12 @@ def main():
     ax.set_ylabel("avg reward")
     ax.set_title(f"TOsarsa execution time:[{et-st:.1f}]")
 
-    ax.plot(np.linspace(0,numruns,50),avg_reward,"-",marker='s',color="royalblue")
+    ax.plot(np.linspace(0,m.numruns,50),avg_reward,"-",marker='s',color="royalblue")
     plt.show()
     plt.close()
-    m.save("v5")
+
+    
+    m.save("v5,3_2e5")
 
 
 

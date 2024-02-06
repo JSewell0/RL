@@ -4,7 +4,7 @@ from tiles3 import tiles, IHT
 import pickle
 import matplotlib.pyplot as plt
 import time 
-
+import matplotlib.animation as animation
 
 
 class TOsarsa:
@@ -29,10 +29,10 @@ class TOsarsa:
         self.end_time = 100
 
         self.action_space = [-1000,-500,-100,-25,-5,5,25,100,500,1000]
-        self.reward_arr = []
-        self.time_arr = []
-        self.diff_arr = []
-        self.final_arr = []
+        self.z_arr = np.array([])
+        self.fq_arr = np.array([])
+
+        self.point = 0
 
         self.mu = 3000
         self.sigma = 300
@@ -73,6 +73,14 @@ class TOsarsa:
         elif curve > 600:
             return 600
 
+    def update(self,frame):
+
+        z = self.z_arr[frame-1:frame]
+        fq = self.fq_arr[frame-1:frame]
+
+        self.point.set_xdata(z)
+        self.point.set_ydata(fq)
+
     
     def save(self,version="v1"):
         
@@ -80,75 +88,7 @@ class TOsarsa:
             pickle.dump([self.weights,self.iht],f)                
 
         print("Saved!")
-
-    def plot_reward(self,numruns,timediff):
-        i = 0
-        avg_reward = np.array([])
-        stepnum = int(numruns/50)
-        while i < numruns:
-            avg_reward = np.append(avg_reward,np.mean(self.reward_arr[i:i+stepnum]))
-            i += stepnum
-
-        fig, ax = plt.subplots()
-
-        ax.set_xlabel("episode")
-        ax.set_ylabel("avg reward")
-        ax.set_title(f"TOsarsa execution time:[{timediff:.1f}]")
-
-        ax.plot(np.linspace(0,numruns,50),avg_reward,"-",marker='s',color="royalblue")
-        plt.show()
-        plt.close()
-
-    def plot_time(self,plot_wins = False):
-        wSum = 0
-        lSum = 0
-        for time in self.time_arr:
-            if time>=self.end_time:
-                lSum += 1
-            else:
-                wSum += 1
-                
-        print(f"{wSum/len(self.time_arr)*100}% converged")
-        print(f"{lSum/len(self.time_arr)*100}% failed")
-
-        fig, ax = plt.subplots()
-
-        ax.set_xlabel("time steps")
-        ax.set_ylabel("count")
-        ax.set_title(f"time steps for completion")        
-
-        if plot_wins:
-            ax.hist(self.time_arr,range = (min(self.time_arr),self.end_time),bins=25,log=True)
-        else:
-            ax.hist(self.time_arr,bins=25,log=True)
-        plt.show()
-        plt.close()
-
-
-    def plot_diff(self):
-
-        fig, ax = plt.subplots()
-
-        ax.set_xlabel("distance")
-        ax.set_ylabel("count")
-        ax.set_title(f"final state-Mu difference")        
-
-        ax.hist(self.diff_arr,bins=25,log=True)
-        plt.show()
-        plt.close()
-
-    def plot_final(self):
-        
-        fig, ax = plt.subplots()
-
-        ax.set_xlabel("final position")
-        ax.set_ylabel("count")
-        ax.set_title(f"final state")        
-
-        ax.hist(self.final_arr,bins=25,log=True)
-        plt.show()
-        plt.close()
-        
+    
 
     def feature_fn(self,state,act):
         features = np.zeros(self.maxsize)
@@ -201,7 +141,9 @@ class TOsarsa:
         if self.debug:
             print("\nstep function:")
             print(f"-->(z,action): ({state[0]},{action})")
-            print(f"-->new z: {new_z}\n")
+            print(f"-->new z: {new_z}")
+            print(f"-->slope: {new_slope}")
+            print(f"-->curve: {new_curve}\n")
 
         terminated = False
         if (abs(new_slope)<=1) and (new_curve>=350):
@@ -212,9 +154,13 @@ class TOsarsa:
 
 
     def episode(self,i):
+
+        fig, ax = plt.subplots()
         
         reward_sum = 0
         t = 0
+        self.z_arr = np.array([])
+        self.fq_arr = np.array([])
         
         rng = np.random.default_rng()
         sigma = rng.normal(300,100)
@@ -236,6 +182,15 @@ class TOsarsa:
         terminated = False
         converged = True
 
+        self.z_arr = np.append(self.z_arr,initial_z)
+        self.fq_arr = np.append(self.fq_arr,self.f(initial_z))
+
+        z_space = np.arange(0,6501)
+        line = plt.plot(z_space,self.f(z_space),c='k',label='function')
+        self.point = ax.plot(initial_z,self.f(initial_z),marker="X",mec="r",mfc="r",lw=0,label='agent position')[0]
+        ax.set(xlim=[0, 6500], ylim=[-1, max(self.f(z_space))+200], xlabel='z pos', ylabel='fq val')
+        ax.legend()
+        
         while not terminated:
             
             if self.debug:
@@ -244,6 +199,9 @@ class TOsarsa:
             new_state, reward, terminated = self.step(state,action)
             new_action = self.policy(new_state)
             reward_sum += reward
+
+            self.z_arr = np.append(self.z_arr,new_state[0])
+            self.fq_arr = np.append(self.fq_arr,self.f(new_state[0]))            
 
             if t == self.end_time:
                 terminated = True
@@ -260,31 +218,25 @@ class TOsarsa:
             if not terminated:
                 t += 1
 
-        self.time_arr.append(t)
-        if converged:
-            self.diff_arr.append(abs(state[0]-self.mu))
-        if not converged:
-            self.final_arr.append(state[0])            
-        self.reward_arr.append(reward_sum)
+        print(len(self.z_arr))
 
-            
+        ani = animation.FuncAnimation(fig=fig, func=self.update, frames=len(self.z_arr), interval=250, repeat = True)
+        plt.show()
+        
+
+
+                
 def main():
     
 
     m = TOsarsa(model='model_v5,2_2e5.pickle')
-    m.debug = False
+    m.debug = True
     m.end_time = 500
-    numruns = 1000
-    st = time.time()
+    numruns = 1
+
     for i in range(int(numruns)):
         m.episode(i)
 
-    et = time.time()
-
-    m.plot_time(plot_wins=True)
-    m.plot_reward(numruns,et-st)
-    m.plot_diff()
-    m.plot_final()
 
 
 if __name__ == "__main__":
